@@ -51,7 +51,7 @@ while True:
         support = gold15["Low"].rolling(20).min().iloc[-1]
 
         # ----- 5-minute entry -----
-        gold5 = yf.download("GC=F", period="1d", interval="5m")
+        gold5 = yf.download("GC=F", period="7d", interval="5m", progress=False)
         if gold5.empty:
             time.sleep(60)
             continue
