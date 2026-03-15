@@ -16,7 +16,7 @@ def send_message(text):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     requests.post(url, data={"chat_id": CHAT_ID, "text": text})
     if send_start_message:
-    send_message("Gold AI Bot Started Successfully 🚀")
+        send_message("Gold AI Bot Started Successfully 🚀")
 
 def get_upcoming_news():
     url = f"https://api.tradingeconomics.com/calendar/country/united%20states?c={TRADINGECONOMICS_KEY}&importance=3"
