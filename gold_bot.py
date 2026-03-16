@@ -13,8 +13,8 @@ NEWS_WARNING_WINDOW_MINUTES = 60  # block trades for 60 min before news
 
 # ------------------- FUNCTIONS -------------------
 def send_message(text):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    requests.post(url, data={"chat_id": CHAT_ID, "text": text})
+    url = f"https://api.telegram.org/bot{8631230640:AAFgKCI5th8KSi5DhWjvNV3vWegF2Y6lTOg}/sendMessage"
+    requests.post(url, data={"5374524094": CHAT_ID, "text": text})
     if send_start_message:
         send_message("Gold AI Bot is now running and scanning the market 🔎")
 def detect_liquidity_sweep(data):
