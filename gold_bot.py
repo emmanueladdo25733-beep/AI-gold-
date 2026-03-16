@@ -31,7 +31,7 @@ def detect_liquidity_sweep(data):
     return None
     def get_trend(data):
 
-    ma20 = data['Close'].rolling(20).mean()
+        ma20 = data['Close'].rolling(20).mean()
     ma50 = data['Close'].rolling(50).mean()
 
     if ma20.iloc[-1] > ma50.iloc[-1]:
