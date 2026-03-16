@@ -17,7 +17,49 @@ def send_message(text):
     requests.post(url, data={"chat_id": CHAT_ID, "text": text})
     if send_start_message:
         send_message("Gold AI Bot is now running and scanning the market 🔎")
+def detect_liquidity_sweep(data):
 
+    last = data.iloc[-1]
+    prev = data.iloc[-2]
+
+    if last['High'] > prev['High'] and last['Close'] < prev['High']:
+        return "SELL"
+
+    if last['Low'] < prev['Low'] and last['Close'] > prev['Low']:
+        return "BUY"
+
+    return None
+    def get_trend(data):
+
+    ma20 = data['Close'].rolling(20).mean()
+    ma50 = data['Close'].rolling(50).mean()
+
+    if ma20.iloc[-1] > ma50.iloc[-1]:
+        return "UP"
+
+    if ma20.iloc[-1] < ma50.iloc[-1]:
+        return "DOWN"
+
+    return "RANGE"
+    def check_gold_signals():
+
+    pairs = {
+        "XAUUSD": "GC=F",
+        "XAUEUR": "XAUEUR=X"
+    }
+
+    for name, ticker in pairs.items():
+
+        data = yf.download(ticker, period="7d", interval="5m")
+
+        sweep = detect_liquidity_sweep(data)
+        trend = get_trend(data)
+
+        if sweep == "BUY" and trend == "UP":
+            send_message(f"📈 {name} BUY setup detected")
+
+        if sweep == "SELL" and trend == "DOWN":
+            send_message(f"📉 {name} SELL setup detected")
 def get_upcoming_news():
     url = f"https://api.tradingeconomics.com/calendar/country/united%20states?c={TRADINGECONOMICS_KEY}&importance=3"
     try:
