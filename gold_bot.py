@@ -153,5 +153,5 @@ Reason: Resistance zone + Bearish trend + Liquidity sweep
     except Exception as e:
         print("Error:", e)
 send_message("Bot test message - system running")
-    # Wait 4 minutes before next check
-    time.sleep(240)
+# Wait 4 minutes before next check
+time.sleep(240)
