@@ -43,7 +43,7 @@ def detect_liquidity_sweep(data):
     return "RANGE"
     def check_gold_signals():
 
-    pairs = {
+        pairs = {
         "XAUUSD": "GC=F",
         "XAUEUR": "XAUEUR=X"
     }
