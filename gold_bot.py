@@ -4,8 +4,8 @@ import pandas as pd
 import time
 from datetime import datetime, timedelta
 
-# ------------------- SETTINGS -------------------
-BOT_TOKEN = "8631230640:AAFgKCI5th8KSi5DhWjvNV3vWegF2Y6lTOg"   # Replace with your Telegram bot token
+# ------------------- SETTINGS ------------------"   # Replace with your Telegram bot token
+BOT_TOKEN=8631230640:AAFgKCI5th8KSi5DhWjvNV3vWegF2Y6lTOg
 CHAT_ID = 5374524094 
 TRADINGECONOMICS_KEY = "674e7ba864f245e:fln2e3inbeultxt"
 send_start_message = True
