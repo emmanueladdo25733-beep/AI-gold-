@@ -5,8 +5,8 @@ import time
 import yfinance as yf
 
 # ------------------- SETTINGS ------------------"   # Replace with your Telegram bot token
-BOT_TOKEN= os.gentenv"BOT_TOKEN"
-CHAT_ID = os.gentenv"CHAT_ID"
+BOT_TOKEN= os.getenv"BOT_TOKEN"
+CHAT_ID = os.getenv"CHAT_ID"
 TRADINGECONOMICS_KEY = "674e7ba864f245e:fln2e3inbeultxt"
 send_start_message = True
 NEWS_WARNING_WINDOW_MINUTES = 60  # block trades for 60 min before news
