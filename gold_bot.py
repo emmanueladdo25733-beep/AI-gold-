@@ -13,9 +13,15 @@ NEWS_WARNING_WINDOW_MINUTES = 60  # block trades for 60 min before news
 
 # ------------------- FUNCTIONS -------------------
 def send_message(text):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    requests.post(url, data={"chat_id": CHAT_ID, "text": text})
-def detect_liquidity_sweep(data):
+    try:
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+        response = requests.post(url, data={
+            "chat_id": CHAT_ID,
+            "text": text
+        })
+        print(response.text)
+    except Exception as e:
+        print("Error sending message:", e)
 
     last = data.iloc[-1]
     prev = data.iloc[-2]
@@ -147,7 +153,7 @@ Reason: Resistance zone + Bearish trend + Liquidity sweep
             # Send message only if a setup exists
             if send_setup:
                 send_message(message)
-
+send_message("🚀 Bot is now LIVE on Railway")
     except Exception as e:
         print("Error:", e)
 send_message("Bot test message - system running")
