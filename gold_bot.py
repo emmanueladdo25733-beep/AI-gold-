@@ -153,7 +153,6 @@ Reason: Resistance zone + Bearish trend + Liquidity sweep
             # Send message only if a setup exists
             if send_setup:
                 send_message(message)
-send_message("🚀 Bot is now LIVE on Railway")
     except Exception as e:
         print("Error:", e)
 send_message("Bot test message - system running")
