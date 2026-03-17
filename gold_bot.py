@@ -3,144 +3,139 @@ import requests
 import pandas as pd
 import time
 import yfinance as yf
-from datetime import datetime, timedelta
+from datetime import datetime
 
-# ------------------- SETTINGS -------------------
+# ---------------- SETTINGS ----------------
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
-TRADINGECONOMICS_KEY = "674e7ba864f245e:fln2e3inbeultxt"
-NEWS_WARNING_WINDOW_MINUTES = 60 
 
-# ------------------- FUNCTIONS -------------------
+send_start_message = True
+NEWS_WARNING_WINDOW_MINUTES = 60
 
+last_signal = None
+
+# ---------------- TELEGRAM ----------------
 def send_message(text):
-    """Simple function to send alerts to Telegram"""
     try:
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-        payload = {
-            "chat_id": CHAT_ID,
-            "text": text
-        }
-        response = requests.post(url, data=payload)
-        print(f"Telegram response: {response.status_code}")
+        requests.post(url, data={"chat_id": CHAT_ID, "text": text})
     except Exception as e:
-        print(f"Error sending message: {e}")
+        print("Error:", e)
 
-def detect_liquidity_sweep(data):
-    """Analyzes data to find BUY/SELL signals"""
-    if data.empty or len(data) < 2:
-        return None
-        
-    # Ensure we are looking at the right columns
-    last = data.iloc[-1]
-    prev = data.iloc[-2]
+# ---------------- START MESSAGE ----------------
+if send_start_message:
+    send_message("🚀 Gold AI Bot is LIVE and scanning XAUUSD & XAUEUR")
 
-    if last['High'] > prev['High'] and last['Close'] < prev['High']:
-        return "SELL"
+# ---------------- SESSION FILTER ----------------
+def is_trading_session():
+    now = datetime.utcnow().hour
 
-    if last['Low'] < prev['Low'] and last['Close'] > prev['Low']:
-        return "BUY"
+    # London + New York sessions (approx)
+    if 7 <= now <= 20:
+        return True
+    return False
 
-    return None
-
-def get_trend(data):
-    """Calculates Moving Average trend"""
-    if len(data) < 50:
-        return "WAITING"
-        
-    ma20 = data['Close'].rolling(20).mean()
-    ma50 = data['Close'].rolling(50).mean()
-
-    if ma20.iloc[-1] > ma50.iloc[-1]:
-        return "UP"
-    elif ma20.iloc[-1] < ma50.iloc[-1]:
-        return "DOWN"
-    return "RANGE"
-
-def get_upcoming_news():
-    """Checks for high-impact US news"""
-    url = f"https://api.tradingeconomics.com/calendar/country/united%20states?c={TRADINGECONOMICS_KEY}&importance=3"
+# ---------------- NEWS FILTER ----------------
+def high_impact_news():
     try:
-        resp = requests.get(url, timeout=10)
-        events = resp.json()
-        upcoming = []
+        url = "https://api.tradingeconomics.com/calendar?c=guest:guest&f=json"
+        response = requests.get(url).json()
+
         now = datetime.utcnow()
-        for event in events:
-            # Adjust date parsing based on actual API response format
-            event_time = datetime.strptime(event['date'].split('.')[0], '%Y-%m-%dT%H:%M:%S')
-            if now <= event_time <= now + timedelta(minutes=NEWS_WARNING_WINDOW_MINUTES):
-                upcoming.append(f"{event_time.strftime('%H:%M')} - {event['event']}")
-        return upcoming
-    except Exception as e:
-        print(f"News API Error: {e}")
-        return []
 
-# ------------------- MAIN LOOP -------------------
+        for event in response:
+            if event.get("Importance") == 3:
+                event_time = datetime.fromisoformat(event["Date"].replace("Z", ""))
+                diff = abs((event_time - now).total_seconds()) / 60
 
-send_message("🚀 Bot is now LIVE on Railway")
+                if diff < NEWS_WARNING_WINDOW_MINUTES:
+                    return True
+    except:
+        return False
 
+    return False
+
+# ---------------- MAIN STRATEGY ----------------
+def check_gold_signals():
+    global last_signal
+
+    if not is_trading_session():
+        return
+
+    if high_impact_news():
+        return
+
+    pairs = {
+        "XAUUSD": "GC=F",
+        "XAUEUR": "GC=F"
+    }
+
+    for pair_name, ticker in pairs.items():
+
+        data = yf.download(ticker, period="2d", interval="5m", progress=False)
+
+        if data.empty:
+            continue
+
+        # Indicators
+        data['MA20'] = data['Close'].rolling(20).mean()
+        data['MA50'] = data['Close'].rolling(50).mean()
+
+        last = data.iloc[-1]
+        prev = data.iloc[-2]
+
+        trend = None
+
+        if last['MA20'] > last['MA50']:
+            trend = "UP"
+        elif last['MA20'] < last['MA50']:
+            trend = "DOWN"
+
+        signal = None
+
+        # Liquidity sweep
+        if last['High'] > prev['High'] and last['Close'] < prev['High']:
+            signal = "SELL"
+
+        if last['Low'] < prev['Low'] and last['Close'] > prev['Low']:
+            signal = "BUY"
+
+        # ---------------- EXECUTION ----------------
+        if signal == "BUY" and trend == "UP" and last_signal != f"{pair_name}_BUY":
+
+            entry = last['Close']
+            sl = last['Low']
+            tp = entry + (entry - sl) * 2
+
+            last_signal = f"{pair_name}_BUY"
+
+            send_message(
+                f"📈 {pair_name} BUY\n"
+                f"Entry: {entry}\n"
+                f"SL: {sl}\n"
+                f"TP: {tp}\n"
+                f"Session: London/NY\n"
+                f"Confidence: ⭐⭐⭐⭐"
+            )
+
+        elif signal == "SELL" and trend == "DOWN" and last_signal != f"{pair_name}_SELL":
+
+            entry = last['Close']
+            sl = last['High']
+            tp = entry - (sl - entry) * 2
+
+            last_signal = f"{pair_name}_SELL"
+
+            send_message(
+                f"📉 {pair_name} SELL\n"
+                f"Entry: {entry}\n"
+                f"SL: {sl}\n"
+                f"TP: {tp}\n"
+                f"Session: London/NY\n"
+                f"Confidence: ⭐⭐⭐⭐"
+            )
+
+# ---------------- LOOP ----------------
 while True:
-    try:
-        # ----- 15-minute trend -----
-        gold15 = yf.download("GC=F", period="2d", interval="15m", progress=False)
-        if gold15.empty:
-            print("No data received for GC=F (15m)")
-            time.sleep(60)
-            continue
-            
-        # Fix for yfinance multi-index columns
-        if isinstance(gold15.columns, pd.MultiIndex):
-            gold15.columns = gold15.columns.get_level_values(0)
-
-        close15 = gold15["Close"]
-        ma20_15 = close15.rolling(20).mean()
-        current_trend = "BULLISH" if close15.iloc[-1] > ma20_15.iloc[-1] else "BEARISH"
-
-        # ----- Support & Resistance -----
-        resistance = gold15["High"].rolling(20).max().iloc[-1]
-        support = gold15["Low"].rolling(20).min().iloc[-1]
-
-        # ----- 5-minute entry -----
-        gold5 = yf.download("GC=F", period="2d", interval="5m", progress=False)
-        if gold5.empty:
-            time.sleep(60)
-            continue
-            
-        if isinstance(gold5.columns, pd.MultiIndex):
-            gold5.columns = gold5.columns.get_level_values(0)
-
-        price = float(gold5["Close"].iloc[-1])
-        
-        # Check liquidity sweep on 5m
-        sweep_signal = detect_liquidity_sweep(gold5)
-
-        # ----- Check upcoming news -----
-        upcoming_news = get_upcoming_news()
-        if upcoming_news:
-            news_msg = "⚠️ HIGH IMPACT NEWS DETECTED\n" + "\n".join(upcoming_news)
-            send_message(news_msg)
-            print("Trading paused due to news.")
-        else:
-            # ----- Logic for generating Trade Alerts -----
-            # Bullish Setup
-            if current_trend == "BULLISH" and price <= (support + 1):
-                entry = price
-                sl = support - 2
-                tp = entry + (entry - sl) * 1.5
-                msg = f"📈 GOLD BUY SETUP\n\nEntry: {entry:.2f}\nSL: {sl:.2f}\nTP: {tp:.2f}\nTrend: Bullish"
-                send_message(msg)
-
-            # Bearish Setup
-            elif current_trend == "BEARISH" and price >= (resistance - 1):
-                entry = price
-                sl = resistance + 2
-                tp = entry - (sl - entry) * 1.5
-                msg = f"📉 GOLD SELL SETUP\n\nEntry: {entry:.2f}\nSL: {sl:.2f}\nTP: {tp:.2f}\nTrend: Bearish"
-                send_message(msg)
-
-    except Exception as e:
-        print(f"Loop Error: {e}")
-
-    # Wait 5 minutes before the next check
-    print("Cycle complete. Waiting 300 seconds...")
-    time.sleep(300)
+    check_gold_signals()
+    time.sleep(300)  # 5 minutes
