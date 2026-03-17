@@ -5,8 +5,8 @@ import time
 from datetime import datetime, timedelta
 
 # ------------------- SETTINGS ------------------"   # Replace with your Telegram bot token
-BOT_TOKEN="BOT_TOKEN"
-CHAT_ID = "CHAT_ID"
+BOT_TOKEN= os.gentiv"BOT_TOKEN"
+CHAT_ID = os.gentiv"CHAT_ID"
 TRADINGECONOMICS_KEY = "674e7ba864f245e:fln2e3inbeultxt"
 send_start_message = True
 NEWS_WARNING_WINDOW_MINUTES = 60  # block trades for 60 min before news
@@ -14,9 +14,7 @@ NEWS_WARNING_WINDOW_MINUTES = 60  # block trades for 60 min before news
 # ------------------- FUNCTIONS -------------------
 def send_message(text):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    requests.post(url, data={"CHAT_ID": CHAT_ID, "text": text})
-    if send_start_message:
-        send_message("Gold AI Bot is now running and scanning the market 🔎")
+    requests.post(url, data={"chat_id": CHAT_ID, "text": text})
 def detect_liquidity_sweep(data):
 
     last = data.iloc[-1]
