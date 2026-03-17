@@ -80,6 +80,7 @@ def get_upcoming_news():
         return []
 
 # ------------------- MAIN LOOP -------------------
+send_message("🚀 Bot is now LIVE on Railway")
 while True:
     try:
         # ----- 15-minute trend -----
