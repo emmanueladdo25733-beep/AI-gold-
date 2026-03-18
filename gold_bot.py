@@ -1,6 +1,5 @@
 import os
 import requests
-import pandas as pd
 import time
 import yfinance as yf
 from datetime import datetime, timedelta
@@ -21,61 +20,17 @@ def send_message(text):
         print("Telegram Error:", e)
 
 # ---------------- START MESSAGE ----------------
-send_message("🚀 PRO Gold AI Bot is LIVE (Stable Version)")
+send_message("🚀 PRO Gold AI Bot is LIVE (Final Stable Version)")
 
 # ---------------- SESSION FILTER ----------------
 def is_trading_session():
     hour = datetime.utcnow().hour
     return 6 <= hour <= 21
 
-# ---------------- NEWS FILTER (SAFE) ----------------
-def is_news_time():
-    try:
-        url = "https://api.tradingeconomics.com/calendar?c=guest:guest&f=json"
-        data = requests.get(url, timeout=5).json()
-
-        now = datetime.utcnow()
-
-        for event in data:
-            if event.get("Importance") == 3 and "Date" in event:
-                try:
-                    event_time = datetime.fromisoformat(event["Date"].replace("Z", ""))
-                    diff = abs((event_time - now).total_seconds()) / 60
-
-                    if diff < 20:
-                        return True
-                except:
-                    continue
-    except:
-        return False
-
-    return False
-
-# ---------------- STRUCTURE ----------------
-def detect_structure(data):
-    if len(data) < 5:
-        return "RANGE"
-
-    try:
-        highs = data['High']
-        lows = data['Low']
-
-        if highs.iloc[-1] > highs.iloc[-3] and lows.iloc[-1] > lows.iloc[-3]:
-            return "UP"
-        elif highs.iloc[-1] < highs.iloc[-3] and lows.iloc[-1] < lows.iloc[-3]:
-            return "DOWN"
-    except:
-        return "RANGE"
-
-    return "RANGE"
-
 # ---------------- MAIN STRATEGY ----------------
 def check_gold():
 
     if not is_trading_session():
-        return
-
-    if is_news_time():
         return
 
     pairs = {
@@ -95,29 +50,31 @@ def check_gold():
             data['MA20'] = data['Close'].rolling(20).mean()
             data['MA50'] = data['Close'].rolling(50).mean()
 
-            last = data.iloc[-1]
-            prev = data.iloc[-2]
+            # Force single values (VERY IMPORTANT FIX)
+            last_close = float(data['Close'].iloc[-1])
+            prev_high = float(data['High'].iloc[-2])
+            prev_low = float(data['Low'].iloc[-2])
+            last_high = float(data['High'].iloc[-1])
+            last_low = float(data['Low'].iloc[-1])
+            ma20 = float(data['MA20'].iloc[-1])
+            ma50 = float(data['MA50'].iloc[-1])
 
-            trend = "UP" if last['MA20'] > last['MA50'] else "DOWN"
-            structure = detect_structure(data)
+            trend = "UP" if ma20 > ma50 else "DOWN"
 
             signal = None
 
             # Liquidity sweep
-            if last['High'] > prev['High'] and last['Close'] < prev['High']:
+            if last_high > prev_high and last_close < prev_high:
                 signal = "SELL"
 
-            elif last['Low'] < prev['Low'] and last['Close'] > prev['Low']:
+            elif last_low < prev_low and last_close > prev_low:
                 signal = "BUY"
 
-            # Filters
+            # Trend filter
             if signal == "BUY" and trend != "UP":
                 continue
 
             if signal == "SELL" and trend != "DOWN":
-                continue
-
-            if structure == "RANGE":
                 continue
 
             # Cooldown
@@ -128,14 +85,16 @@ def check_gold():
                     continue
 
             # Trade setup
-            entry = float(last['Close'])
+            entry = last_close
 
             if signal == "BUY":
-                sl = float(last['Low'])
+                sl = last_low
                 tp = entry + (entry - sl) * 2
-            else:
-                sl = float(last['High'])
+            elif signal == "SELL":
+                sl = last_high
                 tp = entry - (sl - entry) * 2
+            else:
+                continue
 
             last_signal_time[pair] = now
 
@@ -145,7 +104,6 @@ def check_gold():
                 f"SL: {sl:.2f}\n"
                 f"TP: {tp:.2f}\n"
                 f"Trend: {trend}\n"
-                f"Structure: {structure}\n"
                 f"Confidence: ⭐⭐⭐⭐"
             )
 
