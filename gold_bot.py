@@ -3,16 +3,14 @@ import requests
 import pandas as pd
 import time
 import yfinance as yf
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # ---------------- SETTINGS ----------------
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-send_start_message = True
-NEWS_WARNING_WINDOW_MINUTES = 60
-
-last_signal = None
+last_signal_time = {}
+COOLDOWN_MINUTES = 30
 
 # ---------------- TELEGRAM ----------------
 def send_message(text):
@@ -23,46 +21,51 @@ def send_message(text):
         print("Error:", e)
 
 # ---------------- START MESSAGE ----------------
-if send_start_message:
-    send_message("🚀 Gold AI Bot is LIVE and scanning XAUUSD & XAUEUR")
+send_message("🚀 PRO Gold AI Bot is LIVE (XAUUSD & XAUEUR)")
 
 # ---------------- SESSION FILTER ----------------
 def is_trading_session():
-    now = datetime.utcnow().hour
+    hour = datetime.utcnow().hour
+    return 6 <= hour <= 21   # London + NY (optimized)
 
-    # London + New York sessions (approx)
-    if 7 <= now <= 20:
-        return True
-    return False
-
-# ---------------- NEWS FILTER ----------------
-def high_impact_news():
+# ---------------- LIGHT NEWS FILTER ----------------
+def is_news_time():
     try:
         url = "https://api.tradingeconomics.com/calendar?c=guest:guest&f=json"
-        response = requests.get(url).json()
+        data = requests.get(url).json()
 
         now = datetime.utcnow()
 
-        for event in response:
+        for event in data:
             if event.get("Importance") == 3:
                 event_time = datetime.fromisoformat(event["Date"].replace("Z", ""))
                 diff = abs((event_time - now).total_seconds()) / 60
 
-                if diff < NEWS_WARNING_WINDOW_MINUTES:
+                if diff < 20:  # only block 20 mins
                     return True
     except:
         return False
 
     return False
 
+# ---------------- STRUCTURE LOGIC ----------------
+def detect_structure(data):
+    highs = data['High']
+    lows = data['Low']
+
+    if highs.iloc[-1] > highs.iloc[-3] and lows.iloc[-1] > lows.iloc[-3]:
+        return "UP"
+    elif highs.iloc[-1] < highs.iloc[-3] and lows.iloc[-1] < lows.iloc[-3]:
+        return "DOWN"
+    return "RANGE"
+
 # ---------------- MAIN STRATEGY ----------------
-def check_gold_signals():
-    global last_signal
+def check_gold():
 
     if not is_trading_session():
         return
 
-    if high_impact_news():
+    if is_news_time():
         return
 
     pairs = {
@@ -70,7 +73,7 @@ def check_gold_signals():
         "XAUEUR": "GC=F"
     }
 
-    for pair_name, ticker in pairs.items():
+    for pair, ticker in pairs.items():
 
         data = yf.download(ticker, period="2d", interval="5m", progress=False)
 
@@ -81,61 +84,63 @@ def check_gold_signals():
         data['MA20'] = data['Close'].rolling(20).mean()
         data['MA50'] = data['Close'].rolling(50).mean()
 
+        trend = "UP" if data['MA20'].iloc[-1] > data['MA50'].iloc[-1] else "DOWN"
+
+        structure = detect_structure(data)
+
         last = data.iloc[-1]
         prev = data.iloc[-2]
 
-        trend = None
-
-        if last['MA20'] > last['MA50']:
-            trend = "UP"
-        elif last['MA20'] < last['MA50']:
-            trend = "DOWN"
-
         signal = None
 
-        # Liquidity sweep
+        # Liquidity sweep + confirmation
         if last['High'] > prev['High'] and last['Close'] < prev['High']:
             signal = "SELL"
 
-        if last['Low'] < prev['Low'] and last['Close'] > prev['Low']:
+        elif last['Low'] < prev['Low'] and last['Close'] > prev['Low']:
             signal = "BUY"
 
-        # ---------------- EXECUTION ----------------
-        if signal == "BUY" and trend == "UP" and last_signal != f"{pair_name}_BUY":
+        # ---------------- FILTER ----------------
+        if signal == "BUY" and trend != "UP":
+            continue
 
-            entry = last['Close']
+        if signal == "SELL" and trend != "DOWN":
+            continue
+
+        if structure == "RANGE":
+            continue
+
+        # ---------------- COOLDOWN ----------------
+        now = datetime.utcnow()
+
+        if pair in last_signal_time:
+            if now - last_signal_time[pair] < timedelta(minutes=COOLDOWN_MINUTES):
+                continue
+
+        # ---------------- EXECUTION ----------------
+        entry = last['Close']
+
+        if signal == "BUY":
             sl = last['Low']
             tp = entry + (entry - sl) * 2
 
-            last_signal = f"{pair_name}_BUY"
-
-            send_message(
-                f"📈 {pair_name} BUY\n"
-                f"Entry: {entry}\n"
-                f"SL: {sl}\n"
-                f"TP: {tp}\n"
-                f"Session: London/NY\n"
-                f"Confidence: ⭐⭐⭐⭐"
-            )
-
-        elif signal == "SELL" and trend == "DOWN" and last_signal != f"{pair_name}_SELL":
-
-            entry = last['Close']
+        else:
             sl = last['High']
             tp = entry - (sl - entry) * 2
 
-            last_signal = f"{pair_name}_SELL"
+        last_signal_time[pair] = now
 
-            send_message(
-                f"📉 {pair_name} SELL\n"
-                f"Entry: {entry}\n"
-                f"SL: {sl}\n"
-                f"TP: {tp}\n"
-                f"Session: London/NY\n"
-                f"Confidence: ⭐⭐⭐⭐"
-            )
+        send_message(
+            f"{'📈' if signal=='BUY' else '📉'} {pair} {signal}\n"
+            f"Entry: {entry:.2f}\n"
+            f"SL: {sl:.2f}\n"
+            f"TP: {tp:.2f}\n"
+            f"Trend: {trend}\n"
+            f"Structure: {structure}\n"
+            f"Confidence: ⭐⭐⭐⭐"
+        )
 
 # ---------------- LOOP ----------------
 while True:
-    check_gold_signals()
-    time.sleep(300)  # 5 minutes
+    check_gold()
+    time.sleep(300)
