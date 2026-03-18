@@ -20,7 +20,7 @@ def send_message(text):
         print("Telegram Error:", e)
 
 # ---------------- START MESSAGE ----------------
-send_message("🚀 PRO Gold AI Bot is LIVE (Final Stable Version)")
+send_message("🚀 Gold AI Bot LIVE (No Errors Version)")
 
 # ---------------- SESSION FILTER ----------------
 def is_trading_session():
@@ -43,19 +43,35 @@ def check_gold():
         try:
             data = yf.download(ticker, period="2d", interval="5m", progress=False)
 
-            if data is None or data.empty or len(data) < 50:
+            # ✅ CLEAN DATA (VERY IMPORTANT FIX)
+            if data is None or data.empty:
+                continue
+
+            data = data.dropna()
+
+            if len(data) < 50:
                 continue
 
             # Indicators
             data['MA20'] = data['Close'].rolling(20).mean()
             data['MA50'] = data['Close'].rolling(50).mean()
 
-            # Force single values (VERY IMPORTANT FIX)
-            last_close = float(data['Close'].iloc[-1])
-            prev_high = float(data['High'].iloc[-2])
-            prev_low = float(data['Low'].iloc[-2])
-            last_high = float(data['High'].iloc[-1])
-            last_low = float(data['Low'].iloc[-1])
+            data = data.dropna()
+
+            if len(data) < 50:
+                continue
+
+            # Safe extraction
+            last = data.iloc[-1]
+            prev = data.iloc[-2]
+
+            last_close = float(last['Close'])
+            last_high = float(last['High'])
+            last_low = float(last['Low'])
+
+            prev_high = float(prev['High'])
+            prev_low = float(prev['Low'])
+
             ma20 = float(data['MA20'].iloc[-1])
             ma50 = float(data['MA50'].iloc[-1])
 
@@ -84,7 +100,7 @@ def check_gold():
                 if now - last_signal_time[pair] < timedelta(minutes=COOLDOWN_MINUTES):
                     continue
 
-            # Trade setup
+            # Execute trade
             entry = last_close
 
             if signal == "BUY":
@@ -103,8 +119,7 @@ def check_gold():
                 f"Entry: {entry:.2f}\n"
                 f"SL: {sl:.2f}\n"
                 f"TP: {tp:.2f}\n"
-                f"Trend: {trend}\n"
-                f"Confidence: ⭐⭐⭐⭐"
+                f"Trend: {trend}"
             )
 
         except Exception as e:
