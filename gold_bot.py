@@ -2,7 +2,7 @@ import os
 import requests
 import time
 import yfinance as yf
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # ---------------- SETTINGS ----------------
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -19,12 +19,21 @@ def send_message(text):
     except Exception as e:
         print("Telegram Error:", e)
 
+# ---------------- SAFE VALUE FUNCTION ----------------
+def safe_float(value):
+    try:
+        if value is None:
+            return None
+        return float(value)
+    except:
+        return None
+
 # ---------------- START MESSAGE ----------------
-send_message("🚀 Gold AI Bot LIVE (No Errors Version)")
+send_message("🚀 Gold AI Bot LIVE (Ultimate Stable)")
 
 # ---------------- SESSION FILTER ----------------
 def is_trading_session():
-    hour = datetime.utcnow().hour
+    hour = datetime.now(timezone.utc).hour
     return 6 <= hour <= 21
 
 # ---------------- MAIN STRATEGY ----------------
@@ -43,7 +52,6 @@ def check_gold():
         try:
             data = yf.download(ticker, period="2d", interval="5m", progress=False)
 
-            # ✅ CLEAN DATA (VERY IMPORTANT FIX)
             if data is None or data.empty:
                 continue
 
@@ -61,19 +69,21 @@ def check_gold():
             if len(data) < 50:
                 continue
 
-            # Safe extraction
             last = data.iloc[-1]
             prev = data.iloc[-2]
 
-            last_close = float(last['Close'])
-            last_high = float(last['High'])
-            last_low = float(last['Low'])
+            # SAFE extraction
+            last_close = safe_float(last.get('Close'))
+            last_high = safe_float(last.get('High'))
+            last_low = safe_float(last.get('Low'))
+            prev_high = safe_float(prev.get('High'))
+            prev_low = safe_float(prev.get('Low'))
+            ma20 = safe_float(data['MA20'].iloc[-1])
+            ma50 = safe_float(data['MA50'].iloc[-1])
 
-            prev_high = float(prev['High'])
-            prev_low = float(prev['Low'])
-
-            ma20 = float(data['MA20'].iloc[-1])
-            ma50 = float(data['MA50'].iloc[-1])
+            # ❌ Skip if ANY value is bad
+            if None in [last_close, last_high, last_low, prev_high, prev_low, ma20, ma50]:
+                continue
 
             trend = "UP" if ma20 > ma50 else "DOWN"
 
@@ -94,13 +104,13 @@ def check_gold():
                 continue
 
             # Cooldown
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
 
             if pair in last_signal_time:
                 if now - last_signal_time[pair] < timedelta(minutes=COOLDOWN_MINUTES):
                     continue
 
-            # Execute trade
+            # Trade setup
             entry = last_close
 
             if signal == "BUY":
