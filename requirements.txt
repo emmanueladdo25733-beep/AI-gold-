@@ -1,3 +1,6 @@
-pandas
+python-telegram-bot
 yfinance
+pandas
+pandas_ta
 requests
+beautifulsoup4
